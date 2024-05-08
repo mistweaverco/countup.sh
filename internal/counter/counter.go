@@ -8,9 +8,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/stopwatch"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mistweaverco/countup.sh/internal/stopwatch"
+	"github.com/mistweaverco/countup.sh/internal/utils"
 )
 
 const (
@@ -47,7 +48,7 @@ type keymap struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return m.stopwatch.Init()
+	return nil
 }
 
 func getFormattedTimeString(d time.Duration) string {
@@ -57,12 +58,22 @@ func getFormattedTimeString(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
+func (m model) BackupDBPeriodic() {
+	elapsed := int(m.stopwatch.Elapsed().Seconds())
+	if elapsed%30 == 0 {
+		m.UpdateElapsedInDB()
+	}
+}
+
 func (m model) View() string {
 	s := ""
 	sw := getFormattedTimeString(m.stopwatch.Elapsed()) + "\n"
 	if !m.quitting {
+		m.BackupDBPeriodic()
 		s = timerNameStyle.Render(m.timerName) + " " + sw
 		s += m.helpView()
+	} else {
+		m.UpdateElapsedInDB()
 	}
 	return s
 }
@@ -96,10 +107,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m model) UpdateElapsedInDB() {
+	elapsed := int(m.stopwatch.Elapsed().Seconds())
+	utils.DBSetCounter(m.timerName, elapsed)
+}
+
 func Start(timerName string) {
+	utils.DBNew()
+	t := utils.DBGetCounter(timerName)
 	m := model{
 		timerName: timerName,
-		stopwatch: stopwatch.NewWithInterval(time.Second),
+		stopwatch: stopwatch.NewWithInterval(time.Second, t.Elapsed),
 		keymap: keymap{
 			start: key.NewBinding(
 				key.WithKeys("s"),
@@ -120,8 +138,7 @@ func Start(timerName string) {
 		},
 		help: help.New(),
 	}
-
-	m.keymap.start.SetEnabled(false)
+	m.keymap.stop.SetEnabled(false)
 
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Oh no, it didn't work:", err)
