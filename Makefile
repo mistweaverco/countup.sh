@@ -18,4 +18,4 @@ release:
 	gh release create --generate-notes v$(VERSION) dist/timetrack.sh-$(VERSION)-linux.tar.gz dist/timetrack.sh-$(VERSION)-macos.tar.gz dist/timetrack.sh-$(VERSION)-windows.zip
 
 run:
-	go run -ldflags "-X 'main.VERSION=development'" cmd/main.go "Dummy Timer"
+	LOG_LEVEL=DEBUG go run -ldflags "-X 'main.VERSION=development'" cmd/main.go
